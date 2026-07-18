@@ -108,7 +108,7 @@ The script produces a formatted table like this:
 -------------------------------
 | Size       | Folder         |
 -------------------------------
-|  0.5M      | .              |
+|  0.5M      | .              | <-- this shows the total of files only
 | 12.3M      | build          |
 |  4.7M      | src            |
 |  2.1M      | tests          |
