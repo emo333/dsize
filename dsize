@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# dsize – human-readable table of directory sizes, with mount point info.
+# dsize – terminal tool that shows human-readable table of directory sizes, with mount point info.
+# Author: Mitch Wilson - https://csimw.com
+# GitHub repo: https://github.com/emo333/dsize
 # Usage: source dsize              # runs in current directory
 #        bash dsize /path          # optional path argument
 #
@@ -10,62 +12,69 @@ set -euo pipefail
 # ── Configuration ────────────────────────────────────────────────────────────
 readonly PADDING=2
 
-
 # ANSI color thresholds (first match wins)
-readonly COL_GREY=$'\e[38;5;244m'     # < 1 MB
-readonly COL_GREEN=$'\e[38;5;40m'     # ≥ 1 MB
-readonly COL_YELLOW=$'\e[38;5;220m'   # ≥ 1 GB
-readonly COL_ORANGE=$'\e[38;5;208m'   # ≥ 5 GB
-readonly COL_RED=$'\e[38;5;160m'      # ≥ 10 GB
+readonly COL_GREY=$'\e[38;5;244m'   # < 1 MB
+readonly COL_GREEN=$'\e[38;5;40m'   # ≥ 1 MB
+readonly COL_YELLOW=$'\e[38;5;220m' # ≥ 1 GB
+readonly COL_ORANGE=$'\e[38;5;208m' # ≥ 5 GB
+readonly COL_RED=$'\e[38;5;160m'    # ≥ 10 GB
 readonly RESET=$'\e[0m'
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
 
 # Human-readable bytes — pure shell arithmetic + one awk call for division.
 human_bytes() {
-    local b=$1
-    (( b < 0 )) && die "negative bytes: $b"
-    if (( b >= 1073741824 )); then
-        awk "BEGIN{printf \"%.1fG\", $b/1073741824}"
-    elif (( b >= 1048576 )); then
-        awk "BEGIN{printf \"%.1fM\", $b/1048576}"
-    elif (( b >= 1024 )); then
-        awk "BEGIN{printf \"%.1fK\", $b/1024}"
-    else
-        printf '%d' "$b"
-    fi
+  local b=$1
+  ((b < 0)) && die "negative bytes: $b"
+  if ((b >= 1073741824)); then
+    awk "BEGIN{printf \"%.1fG\", $b/1073741824}"
+  elif ((b >= 1048576)); then
+    awk "BEGIN{printf \"%.1fM\", $b/1048576}"
+  elif ((b >= 1024)); then
+    awk "BEGIN{printf \"%.1fK\", $b/1024}"
+  else
+    printf '%d' "$b"
+  fi
 }
 
 # Strip ANSI codes from a string (GNU sed).
 strip_ansi() {
-    printf '%s' "$1" | sed $'s/\x1b\[[0-9;]*[a-zA-Z]//g'
+  printf '%s' "$1" | sed $'s/\x1b\[[0-9;]*[a-zA-Z]//g'
 }
 
 # Colorize a size value based on its magnitude.
 size_colorize() {
-    local val="$1" n u b=0
-    # Extract numeric part and unit suffix.
-    n="${val%%[^0-9.]*}"
-    u="${val##*[0-9.]}"
-    u="${u,,}"  # lowercase (bash 4+)
+  local val="$1" n u b=0
+  # Extract numeric part and unit suffix.
+  n="${val%%[^0-9.]*}"
+  u="${val##*[0-9.]}"
+  u="${u,,}" # lowercase (bash 4+)
 
-    case "$u" in
-        g) b=$(awk "BEGIN{printf \"%d\", $n * 1073741824}") ;;
-        m) b=$(awk "BEGIN{printf \"%d\", $n * 1048576}")   ;;
-        k) b=$(awk "BEGIN{printf \"%d\", $n * 1024}")      ;;
-        *) b=${n:-0}                                          ;;
-    esac
+  case "$u" in
+  g) b=$(awk "BEGIN{printf \"%d\", $n * 1073741824}") ;;
+  m) b=$(awk "BEGIN{printf \"%d\", $n * 1048576}") ;;
+  k) b=$(awk "BEGIN{printf \"%d\", $n * 1024}") ;;
+  *) b=${n:-0} ;;
+  esac
 
-    if (( b >= 10737418240 )); then color="$COL_RED"
-    elif (( b >= 5368709120 ));   then color="$COL_ORANGE"
-    elif (( b >= 1073741824 ));   then color="$COL_YELLOW"
-    elif (( b >= 1048576 ));      then color="$COL_GREEN"
-    else                            color="$COL_GREY"
-    fi
+  if ((b >= 10737418240)); then
+    color="$COL_RED"
+  elif ((b >= 5368709120)); then
+    color="$COL_ORANGE"
+  elif ((b >= 1073741824)); then
+    color="$COL_YELLOW"
+  elif ((b >= 1048576)); then
+    color="$COL_GREEN"
+  else
+    color="$COL_GREY"
+  fi
 
-    printf '%s%s%s' "$color" "$val" "$RESET"
+  printf '%s%s%s' "$color" "$val" "$RESET"
 }
 
 # ── Cleanup trap ─────────────────────────────────────────────────────────────
@@ -91,38 +100,39 @@ total_raw_bytes=0
 
 # Count direct file sizes in . for the root entry (excludes subdirectories).
 _root_file_bytes="$(find . -maxdepth 1 -type f \
-    -exec stat --format='%s' {} + 2>/dev/null | awk '{s+=$1} END{print s+0}')"
+  -exec stat --format='%s' {} + 2>/dev/null | awk '{s+=$1} END{print s+0}')"
 
 # Process each du output line.
 while IFS=$'\t' read -r size path; do
-    # Normalise relative paths; skip the root "." entry (we compute it separately).
-    case "$path" in
-            .)  continue ;;
-        ./*) path="${path#./}" ;;  # strip leading "./"
-    esac
+  # Normalise relative paths; skip the root "." entry (we compute it separately).
+  case "$path" in
+  .) continue ;;
+  ./*) path="${path#./}" ;; # strip leading "./"
+  esac
 
-    # Deduplicate by real device:inode (handles bind mounts, symlinks).
-    _real="$(readlink -f "$path" 2>/dev/null)" || continue
-    _devino="$(stat --format='%d:%i' "$_real" 2>/dev/null)" || continue
-    [[ -n "${_seen_inode[$_devino]+_}" ]] && continue
-    _seen_inode["$_devino"]=1
+  # Deduplicate by real device:inode (handles bind mounts, symlinks).
+  _real="$(readlink -f "$path" 2>/dev/null)" || continue
+  _devino="$(stat --format='%d:%i' "$_real" 2>/dev/null)" || continue
+  [[ -n "${_seen_inode[$_devino]+_}" ]] && continue
+  _seen_inode["$_devino"]=1
 
-    # Track visible widths (from raw human strings, before any coloring).
-    (( ${#size} > max_sz_width ))  && max_sz_width=${#size}
-    (( ${#path} > max_fd_width ))  && max_fd_width=${#path}
+  # Track visible widths (from raw human strings, before any coloring).
+  ((${#size} > max_sz_width)) && max_sz_width=${#size}
+  ((${#path} > max_fd_width)) && max_fd_width=${#path}
 
-    szs+=("$size"); fds+=("$path")
+  szs+=("$size")
+  fds+=("$path")
 
-    # Accumulate raw bytes for total.
-    _n="${size%%[^0-9.]*}"
-    _u="${size##*[0-9.]}"
-    _u="${_u,,}"
-    case "$_u" in
-        g) total_raw_bytes=$(( total_raw_bytes + $(awk "BEGIN{printf \"%d\", $_n*1073741824}") )) ;;
-        m) total_raw_bytes=$(( total_raw_bytes + $(awk "BEGIN{printf \"%d\", $_n*1048576}")   )) ;;
-        k) total_raw_bytes=$(( total_raw_bytes + $(awk "BEGIN{printf \"%d\", $_n*1024}") )) ;;
-        *) total_raw_bytes=$(( total_raw_bytes + _n )) ;;
-    esac
+  # Accumulate raw bytes for total.
+  _n="${size%%[^0-9.]*}"
+  _u="${size##*[0-9.]}"
+  _u="${_u,,}"
+  case "$_u" in
+  g) total_raw_bytes=$((total_raw_bytes + $(awk "BEGIN{printf \"%d\", $_n*1073741824}"))) ;;
+  m) total_raw_bytes=$((total_raw_bytes + $(awk "BEGIN{printf \"%d\", $_n*1048576}"))) ;;
+  k) total_raw_bytes=$((total_raw_bytes + $(awk "BEGIN{printf \"%d\", $_n*1024}"))) ;;
+  *) total_raw_bytes=$((total_raw_bytes + _n)) ;;
+  esac
 
 done < <(du -h --max-depth=1 . 2>/dev/null | sort -rh)
 
@@ -130,7 +140,10 @@ done < <(du -h --max-depth=1 . 2>/dev/null | sort -rh)
 _root_size="$(human_bytes "$_root_file_bytes")"
 szs=("$_root_size" "${szs[@]}")
 fds=("." "${fds[@]}")
-(( ${#_root_size} > max_sz_width )) && max_sz_width=${#_root_size}
+((${#_root_size} > max_sz_width)) && max_sz_width=${#_root_size}
+
+# Include root file bytes in the total.
+total_raw_bytes=$((total_raw_bytes + _root_file_bytes))
 
 total_human="$(human_bytes "$total_raw_bytes")"
 
@@ -138,15 +151,18 @@ total_human="$(human_bytes "$total_raw_bytes")"
 
 # ── 2. Mount point info ─────────────────────────────────────────────────────
 # df columns: Filesystem Size Used Avail Use% Mounted-on (with -B1)
-read -r _mount_dev df_total_kb df_used_kb df_avail_kb _use_pct _mount_pt <<< "$(df -B1 . | tail -1)"
-df_total_kb=${df_total_kb:-0}; [[ $df_total_kb =~ ^[0-9]+$ ]] || df_total_kb=0
-df_used_kb=${df_used_kb:-0};   [[ $df_used_kb =~ ^[0-9]+$ ]] || df_used_kb=0
-df_avail_kb=${df_avail_kb:-0};  [[ $df_avail_kb =~ ^[0-9]+$ ]] || df_avail_kb=0
+read -r _mount_dev df_total_kb df_used_kb df_avail_kb _use_pct _mount_pt <<<"$(df -B1 . | tail -1)"
+df_total_kb=${df_total_kb:-0}
+[[ $df_total_kb =~ ^[0-9]+$ ]] || df_total_kb=0
+df_used_kb=${df_used_kb:-0}
+[[ $df_used_kb =~ ^[0-9]+$ ]] || df_used_kb=0
+df_avail_kb=${df_avail_kb:-0}
+[[ $df_avail_kb =~ ^[0-9]+$ ]] || df_avail_kb=0
 
-if (( df_total_kb > 0 )); then
-    usage_pct=$(( df_used_kb * 100 / df_total_kb ))
+if ((df_total_kb > 0)); then
+  usage_pct=$((df_used_kb * 100 / df_total_kb))
 else
-    usage_pct=0
+  usage_pct=0
 fi
 
 mount_name="$(df . | tail -1 | awk '{print $1}')"
@@ -159,31 +175,34 @@ mount_avail_human="$(human_bytes "$df_avail_kb")"
 
 # ── 3. Compute table dimensions ─────────────────────────────────────────────
 # Table 1 (directory sizes)
-col_width=$(( max_sz_width + PADDING ))
-fd_width=$(( max_fd_width + PADDING ))
-line_width=$(( col_width + fd_width + 7 ))   # "| " ... " |" + internal sep = 4 + 3
+col_width=$((max_sz_width + PADDING))
+fd_width=$((max_fd_width + PADDING))
+line_width=$((col_width + fd_width + 7)) # "| " ... " |" + internal sep = 4 + 3
 separator="$(printf '%*s' "$line_width" '' | tr ' ' '-')"
 
 # Table 2 (mount point info)
 m_sz_w=${#mount_total_human}
 [[ ${#mount_used_human} -gt m_sz_w ]] && m_sz_w=${#mount_used_human}
 [[ ${#mount_avail_human} -gt m_sz_w ]] && m_sz_w=${#mount_avail_human}
-m_sz_w=$(( m_sz_w + PADDING ))
+m_sz_w=$((m_sz_w + PADDING))
 m_fd_w=12
-m_line=$(( m_sz_w + m_fd_w + 7 ))
+m_line=$((m_sz_w + m_fd_w + 7))
 mount_sep="$(printf '%*s' "$m_line" '' | tr ' ' '-')"
 
 # Mount colour thresholds.
 m_used_color="" m_avail_color=""
-if (( usage_pct >= 90 )); then
-    m_used_color="$COL_RED"; m_avail_color="$COL_GREY"
-elif (( usage_pct >= 75 )); then
-    m_used_color=""; m_avail_color="$COL_ORANGE"
+if ((usage_pct >= 90)); then
+  m_used_color="$COL_RED"
+  m_avail_color="$COL_GREY"
+elif ((usage_pct >= 75)); then
+  m_used_color=""
+  m_avail_color="$COL_ORANGE"
 else
-    m_used_color=""; m_avail_color=""
+  m_used_color=""
+  m_avail_color=""
 fi
-if (( usage_pct >= 50 && usage_pct < 75 )); then
-    m_avail_color="$COL_YELLOW"
+if ((usage_pct >= 50 && usage_pct < 75)); then
+  m_avail_color="$COL_YELLOW"
 fi
 
 # ── 4. Write output ────────────────────────────────────────────────────────
@@ -191,51 +210,51 @@ fmt() { printf "| %-*s | %-*s |\n" "$col_width" "$1" "$fd_width" "$2"; }
 m_fmt() { printf "| %-*s | %-*s |\n" "$m_sz_w" "$1" "$m_fd_w" "$2"; }
 
 {
-    # ── Table 1: directory sizes ──
-    echo "$separator"
-    fmt Size Folder
-    echo "$separator"
+  # ── Table 1: directory sizes ──
+  echo "$separator"
+  fmt Size Folder
+  echo "$separator"
 
-    for (( i=0; i<${#szs[@]}; i++ )); do
-        colored="$(size_colorize "${szs[$i]}")"
-        visible="$(strip_ansi "$colored")"
-        pad=$(( col_width - ${#visible} ))
-        [[ $pad -lt 0 ]] && pad=0
-        printf "| %s%*s | %-*s |\n" "$colored" "$pad" "" "$fd_width" "${fds[$i]}"
-    done
-
-    echo "$separator"
-    tc="$(size_colorize "$total_human")"
-    tv="$(strip_ansi "$tc")"
-    pad=$(( col_width - ${#tv} ))
+  for ((i = 0; i < ${#szs[@]}; i++)); do
+    colored="$(size_colorize "${szs[$i]}")"
+    visible="$(strip_ansi "$colored")"
+    pad=$((col_width - ${#visible}))
     [[ $pad -lt 0 ]] && pad=0
-    printf "| %s%*s | %-*s |\n" "$tc" "$pad" "" "$fd_width" "Total:"
-    echo "$separator"
+    printf "| %s%*s | %-*s |\n" "$colored" "$pad" "" "$fd_width" "${fds[$i]}"
+  done
 
-    # ── Table 2: mount point info ──
-    echo ""
+  echo "$separator"
+  tc="$(size_colorize "$total_human")"
+  tv="$(strip_ansi "$tc")"
+  pad=$((col_width - ${#tv}))
+  [[ $pad -lt 0 ]] && pad=0
+  printf "| %s%*s | %-*s |\n" "$tc" "$pad" "" "$fd_width" "Total:"
+  echo "$separator"
 
-    echo "$mount_sep"
-    # Header spans full width of data lines (m_line chars total)
-    printf "| %-$(( m_line - 4 ))s |\n" "Mount: $mount_name"
-    echo "$mount_sep"
+  # ── Table 2: mount point info ──
+  echo ""
 
-    m_fmt "$mount_total_human" "Total"
+  echo "$mount_sep"
+  # Header spans full width of data lines (m_line chars total)
+  printf "| %-$((m_line - 4))s |\n" "Mount: $mount_name"
+  echo "$mount_sep"
 
-    if [[ -n "$m_used_color" ]]; then
-        printf "| %s%*s\e[0m | %-*s |\n" "$m_used_color" "$m_sz_w" "$mount_used_human" "$m_fd_w" "Used"
-    else
-        m_fmt "$mount_used_human" "Used"
-    fi
+  m_fmt "$mount_total_human" "Total"
 
-    if [[ -n "$m_avail_color" ]]; then
-        printf "| %s%*s\e[0m | %-*s |\n" "$m_avail_color" "$m_sz_w" "$mount_avail_human" "$m_fd_w" "Avail"
-    else
-        m_fmt "$mount_avail_human" "Avail"
-    fi
+  if [[ -n "$m_used_color" ]]; then
+    printf "| %s%*s\e[0m | %-*s |\n" "$m_used_color" "$m_sz_w" "$mount_used_human" "$m_fd_w" "Used"
+  else
+    m_fmt "$mount_used_human" "Used"
+  fi
 
-    echo "$mount_sep"
-} > "$_TMPFILE"
+  if [[ -n "$m_avail_color" ]]; then
+    printf "| %s%*s\e[0m | %-*s |\n" "$m_avail_color" "$m_sz_w" "$mount_avail_human" "$m_fd_w" "Avail"
+  else
+    m_fmt "$mount_avail_human" "Avail"
+  fi
+
+  echo "$mount_sep"
+} >"$_TMPFILE"
 
 # ── 5. Display ───────────────────────────────────────────────────────────────
 cat "$_TMPFILE"

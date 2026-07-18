@@ -1,10 +1,12 @@
 # dsize
 
-A fast, human-readable table of directory sizes with mount point information.
+A fast terminal tool that shows human-readable table of directory sizes, with mount point info.
+
+_Because `du` alone will make you forget why you opened the terminal ;)_
 
 ## Features
 
-- **Single `du` pass** — gathers all sizes efficiently via `du -h --max-depth=1`.
+- **Single `du` pass** — gathers all sizes efficiently via `du -h --max-depth=1`. (Yes, just one. Not three. You're welcome.)
 - **Color-coded output** — sizes are colorized by magnitude (grey → green → yellow → orange → red).
 - **Mount point info** — shows filesystem usage stats for the current partition.
 - **Inode deduplication** — skips bind mounts and symlinked duplicates.
@@ -18,15 +20,15 @@ Make the script executable:
 chmod +x dsize
 ```
 
-### Making `dirsize` a global command
+### Making `dsize` a global command
 
-Choose one of the following methods to invoke `dirsize` from anywhere.
+Choose one of the following methods to invoke `dsize` from anywhere.
 
 #### Option 1 — Install to `/usr/local/bin/` (system-wide, requires root)
 
 ```bash
-sudo cp dirsize.sh /usr/local/bin/dirsize
-sudo chmod +x /usr/local/bin/dirsize
+sudo cp dsize /usr/local/bin/dsize
+sudo chmod +x /usr/local/bin/dsize
 ```
 
 Then run it simply as `dsize` or `dsize /some/path`.
@@ -51,12 +53,14 @@ source ~/.bashrc
 
 Add one of the following to `~/.bashrc` (or `~/.zshrc`):
 
-**Alias (always scans the current directory):**
+1: **Alias (always scans the current directory — handy if you're too lazy to type a path):**
+
 ```bash
 alias dsize='bash "$(dirname "$0")/dsize"'
 ```
 
-**Function (supports optional path argument):**
+2: **Function (supports optional path argument):**
+
 ```bash
 dsize() {
     bash "$(dirname "${BASH_SOURCE[0]}")/dsize" "${1:-.}"
@@ -69,14 +73,28 @@ Then reload your shell:
 source ~/.bashrc
 ```
 
-### Usage
+### Use Globally ( then you can say "I use dsize, BTW" )
+
+Once installed to your `PATH` (see [Installation](#installation)), run `dsize` from anywhere:
 
 ```bash
 # Run in the current directory
-source dsize
+dsize
 
 # Or specify a target directory
-bash dsize /path/to/dir
+dsize /path/to/dir
+```
+
+### Use as a File ( the lame way to use it. lol! )
+
+No installation needed — use the script directly from your filesystem:
+
+```bash
+# Run in the current directory (source keeps it in the current shell)
+source ./dsize
+
+# Or specify a target directory
+bash ./dsize /path/to/dir
 
 # Or execute directly (if chmod +x)
 ./dsize /path/to/dir
@@ -86,53 +104,53 @@ bash dsize /path/to/dir
 
 The script produces a formatted table like this:
 
-```
------------------------------------------
+```text
+-------------------------------
 | Size       | Folder         |
------------------------------------------
+-------------------------------
+|  0.5M      | .              |
 | 12.3M      | build          |
 |  4.7M      | src            |
 |  2.1M      | tests          |
-|    0.5M    | .              |
-| 19.1M      | Total:         |
------------------------------------------
+| 19.6M      | Total:         |
+-------------------------------
 
--------------------------------------
-| Mount: /dev/sda1                  |
--------------------------------------
+----------------------
+| Mount: /dev/sda1   |
+----------------------
 |  256.4G | Total    |
 |  128.2G | Used     |
 |  128.2G | Avail    |
--------------------------------------
+----------------------
 ```
 
 ## Color Thresholds
 
-| Size          | Color   | ANSI Code         |
-|---------------|---------|--------------------|
-| < 1 MB        | Grey    | `38;5;244`         |
-| ≥ 1 MB        | Green   | `38;5;40`          |
-| ≥ 1 GB        | Yellow  | `38;5;220`         |
-| ≥ 5 GB        | Orange  | `38;5;208`         |
-| ≥ 10 GB       | Red     | `38;5;160`         |
+| Size    | Color  | ANSI Code  |
+| ------- | ------ | ---------- |
+| < 1 MB  | Grey   | `38;5;244` |
+| ≥ 1 MB  | Green  | `38;5;40`  |
+| ≥ 1 GB  | Yellow | `38;5;220` |
+| ≥ 5 GB  | Orange | `38;5;208` |
+| ≥ 10 GB | Red    | `38;5;160` |
 
 ### Mount Point Thresholds
 
-| Usage   | Color Behavior                    |
-|---------|------------------------------------|
-| ≥ 90 %  | Used → Red, Avail → Grey           |
-| 75–90 % | Avail → Orange                     |
-| 50–75 % | Avail → Yellow                     |
-| < 50 %  | No coloring                        |
+| Usage   | Color Behavior                                |
+| ------- | --------------------------------------------- |
+| ≥ 90 %  | Used → Red, Avail → Grey                      |
+| 75–90 % | Avail → Orange                                |
+| 50–75 % | Avail → Yellow                                |
+| < 50 %  | No coloring — your disk is doing fine, relax. |
 
 ## Configuration
 
 A few constants can be tweaked at the top of the script:
 
-| Variable             | Default | Description                   |
-|----------------------|---------|-------------------------------|
-| `PADDING`            | `2`     | Column padding between cells  |
-| `MAX_FOLDER_WIDTH`   | `65`    | (reserved) Max folder name width |
+| Variable           | Default | Description                                                      |
+| ------------------ | ------- | ---------------------------------------------------------------- |
+| `PADDING`          | `2`     | Column padding between cells                                     |
+| `MAX_FOLDER_WIDTH` | `65`    | (reserved) — we hope you never need this. Your folders are fine. |
 
 ## Requirements
 
@@ -150,4 +168,5 @@ A few constants can be tweaked at the top of the script:
 
 ## License
 
-Public domain — use freely.
+Public domain — do what you want with it. We're not your boss.
+_(Please don't break it, though.)_
