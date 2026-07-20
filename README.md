@@ -103,6 +103,7 @@ bash ./dsize /path/to/dir
 ## Output
 
 The script produces a formatted table like this:
+
 <img width="498" height="746" alt="dsize-example" src="https://github.com/user-attachments/assets/420bb790-57ab-49c8-bb02-814da5b16de4" />
 
 ```text
