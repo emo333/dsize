@@ -1,4 +1,8 @@
+<img width="728" height="174" alt="dsize-logo" src="https://github.com/user-attachments/assets/7c1e8e9a-a709-4665-ba9d-47b37d949cb8" />
+
 # dsize
+
+[Website Post on dsize](https://www.csimw.com/post/dsize-terminal-tool)
 
 A fast terminal tool that shows human-readable table of directory sizes, with mount point info.
 
