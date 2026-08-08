@@ -171,8 +171,3 @@ A few constants can be tweaked at the top of the script:
 4. **Mount info** — `df -B1 .` provides total/used/available bytes for the current filesystem.
 5. **Colorization** — sizes are mapped to ANSI 256-color codes based on magnitude thresholds.
 6. **Table formatting** — column widths are computed dynamically, then output is written to a temp file before display (cleaned up via `trap` on exit).
-
-## License
-
-Public domain — do what you want with it. We're not your boss.
-_(Please don't break it, though.)_
